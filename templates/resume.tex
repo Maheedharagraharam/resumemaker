@@ -1,0 +1,64 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=0.55in]{geometry}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{fontawesome5}
+\usepackage{titlesec}
+\usepackage{array}
+\usepackage{parskip}
+
+\hypersetup{
+    colorlinks=false,
+    pdfborder={0 0 0}
+}
+
+% Section formatting
+\titleformat{\section}{\large\bfseries\scshape}{}{0em}{}[\titlerule]
+\titlespacing*{\section}{0pt}{6pt}{3pt}
+
+\begin{document}
+
+% Header
+\begin{center}
+    {\Huge \textbf{<<NAME>>}} \\[3pt]
+    {\large \textbf{<<TITLE>>}} \\[5pt]
+
+    \faPhone* \ <<PHONE>> \hspace{8pt}
+    \faEnvelope \ \href{mailto:<<EMAIL>>}{<<EMAIL>>} \hspace{8pt}
+    \faLinkedin \ \href{<<LINKEDIN>>}{LinkedIn} \hspace{8pt}
+    \faGithub \ \href{<<GITHUB>>}{GitHub} \\[3pt]
+
+    \faMapMarker* \ <<LOCATION>>
+\end{center}
+
+% Summary
+\section*{Professional Summary}
+
+\noindent <<SUMMARY>>
+
+% Technical Skills
+\section*{Technical Skills}
+
+\begin{tabular}{@{}p{0.30\textwidth} p{0.66\textwidth}}
+\textbf{Languages:} & <<SKILLS_LANGUAGES>> \\
+\textbf{Technologies:} & <<SKILLS_TECHNOLOGIES>> \\
+\textbf{Frontend:} & <<SKILLS_FRONTEND>> \\
+\textbf{Databases:} & <<SKILLS_DATABASES>> \\
+\textbf{Cloud \& Tools:} & <<SKILLS_TOOLS>> \\
+\textbf{Concepts:} & <<SKILLS_CONCEPTS>> \\
+\end{tabular}
+
+% Experience
+\section*{Professional Experience}
+<<EXPERIENCE_SECTION>>
+
+% Projects
+\section*{Projects}
+<<PROJECTS_SECTION>>
+
+% Education
+\section*{Education}
+<<EDUCATION_SECTION>>
+
+\end{document}

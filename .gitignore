@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pdf
+*.aux
+*.log
+*.out
+*.json
+data/
+venv/

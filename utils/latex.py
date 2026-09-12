@@ -1,11 +1,16 @@
 import os
 import subprocess
 import shutil
+from utils.llm import clean_text_unicode
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def escape_latex(text: str) -> str:
     """Escapes characters that are special in LaTeX."""
     if not isinstance(text, str):
         return str(text)
+    
+    text = clean_text_unicode(text)
     
     chars = {
         '&': r'\&',
@@ -72,6 +77,8 @@ def generate_pdf_reportlab(resume_data: dict, output_pdf_path: str) -> str:
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    os.makedirs(os.path.dirname(os.path.abspath(output_pdf_path)), exist_ok=True)
 
     doc = SimpleDocTemplate(
         output_pdf_path,
@@ -159,20 +166,23 @@ def generate_pdf_reportlab(resume_data: dict, output_pdf_path: str) -> str:
 
     story = []
 
+    def clean_val(val: str) -> str:
+        return clean_text_unicode(str(val or ""))
+
     # Header
-    name = resume_data.get('name', 'Name')
-    job_title = resume_data.get('job_title', 'Software Engineer')
+    name = clean_val(resume_data.get('name', 'Name'))
+    job_title = clean_val(resume_data.get('job_title', 'Software Engineer'))
     story.append(Paragraph(name.upper(), title_style))
     story.append(Spacer(1, 2))
     story.append(Paragraph(job_title, subtitle_style))
     story.append(Spacer(1, 4))
 
     contacts = []
-    if resume_data.get('phone'): contacts.append(resume_data['phone'])
-    if resume_data.get('email'): contacts.append(resume_data['email'])
-    if resume_data.get('linkedin'): contacts.append("LinkedIn: " + resume_data['linkedin'])
-    if resume_data.get('github'): contacts.append("GitHub: " + resume_data['github'])
-    if resume_data.get('location'): contacts.append(resume_data['location'])
+    if resume_data.get('phone'): contacts.append(clean_val(resume_data['phone']))
+    if resume_data.get('email'): contacts.append(clean_val(resume_data['email']))
+    if resume_data.get('linkedin'): contacts.append("LinkedIn: " + clean_val(resume_data['linkedin']))
+    if resume_data.get('github'): contacts.append("GitHub: " + clean_val(resume_data['github']))
+    if resume_data.get('location'): contacts.append(clean_val(resume_data['location']))
     
     if contacts:
         story.append(Paragraph(" | ".join(contacts), contact_style))
@@ -185,18 +195,18 @@ def generate_pdf_reportlab(resume_data: dict, output_pdf_path: str) -> str:
     # Summary
     if resume_data.get('summary'):
         add_section("Professional Summary")
-        story.append(Paragraph(resume_data['summary'], body_style))
+        story.append(Paragraph(clean_val(resume_data['summary']), body_style))
         story.append(Spacer(1, 4))
 
     # Technical Skills
     skills = resume_data.get('skills', {})
     skill_entries = []
-    if skills.get('languages'): skill_entries.append(('Languages:', ", ".join(skills['languages'])))
-    if skills.get('technologies'): skill_entries.append(('Technologies:', ", ".join(skills['technologies'])))
-    if skills.get('frontend'): skill_entries.append(('Frontend:', ", ".join(skills['frontend'])))
-    if skills.get('databases'): skill_entries.append(('Databases:', ", ".join(skills['databases'])))
-    if skills.get('tools'): skill_entries.append(('Cloud & Tools:', ", ".join(skills['tools'])))
-    if skills.get('concepts'): skill_entries.append(('Concepts:', ", ".join(skills['concepts'])))
+    if skills.get('languages'): skill_entries.append(('Languages:', ", ".join(clean_val(s) for s in skills['languages'])))
+    if skills.get('technologies'): skill_entries.append(('Technologies:', ", ".join(clean_val(s) for s in skills['technologies'])))
+    if skills.get('frontend'): skill_entries.append(('Frontend:', ", ".join(clean_val(s) for s in skills['frontend'])))
+    if skills.get('databases'): skill_entries.append(('Databases:', ", ".join(clean_val(s) for s in skills['databases'])))
+    if skills.get('tools'): skill_entries.append(('Cloud & Tools:', ", ".join(clean_val(s) for s in skills['tools'])))
+    if skills.get('concepts'): skill_entries.append(('Concepts:', ", ".join(clean_val(s) for s in skills['concepts'])))
 
     if skill_entries:
         add_section("Technical Skills")
@@ -209,14 +219,14 @@ def generate_pdf_reportlab(resume_data: dict, output_pdf_path: str) -> str:
     if experiences:
         add_section("Professional Experience")
         for exp in experiences:
-            title = exp.get('title', '')
-            dates = exp.get('dates', '')
-            company = exp.get('company', '')
-            location = exp.get('location', '')
+            title = clean_val(exp.get('title', ''))
+            dates = clean_val(exp.get('dates', ''))
+            company = clean_val(exp.get('company', ''))
+            location = clean_val(exp.get('location', ''))
             
             loc_str = f" | {location}" if location else ""
             header_table = Table(
-                [[Paragraph(f"<b>{title}</b> — <i>{company}</i>", subhead_left), Paragraph(f"{dates}{loc_str}", subhead_right)]],
+                [[Paragraph(f"<b>{title}</b> - <i>{company}</i>", subhead_left), Paragraph(f"{dates}{loc_str}", subhead_right)]],
                 colWidths=[380, 160]
             )
             header_table.setStyle(TableStyle([
@@ -229,7 +239,8 @@ def generate_pdf_reportlab(resume_data: dict, output_pdf_path: str) -> str:
             story.append(header_table)
             
             for bullet in exp.get('bullets', []):
-                story.append(Paragraph(f"• &nbsp; {bullet}", bullet_style))
+                cleaned_bullet = clean_val(bullet)
+                story.append(Paragraph(f"&bull;&nbsp; {cleaned_bullet}", bullet_style))
             story.append(Spacer(1, 4))
 
     # Projects
@@ -237,9 +248,9 @@ def generate_pdf_reportlab(resume_data: dict, output_pdf_path: str) -> str:
     if projects:
         add_section("Projects")
         for proj in projects:
-            pname = proj.get('name', '')
-            dates = proj.get('dates', '')
-            tech = proj.get('technologies', '')
+            pname = clean_val(proj.get('name', ''))
+            dates = clean_val(proj.get('dates', ''))
+            tech = clean_val(proj.get('technologies', ''))
             
             proj_table = Table(
                 [[Paragraph(f"<b>{pname}</b>" + (f" ({tech})" if tech else ""), subhead_left), Paragraph(dates, subhead_right)]],
@@ -254,7 +265,8 @@ def generate_pdf_reportlab(resume_data: dict, output_pdf_path: str) -> str:
             ]))
             story.append(proj_table)
             for bullet in proj.get('bullets', []):
-                story.append(Paragraph(f"• &nbsp; {bullet}", bullet_style))
+                cleaned_bullet = clean_val(bullet)
+                story.append(Paragraph(f"&bull;&nbsp; {cleaned_bullet}", bullet_style))
             story.append(Spacer(1, 4))
 
     # Education
@@ -262,12 +274,12 @@ def generate_pdf_reportlab(resume_data: dict, output_pdf_path: str) -> str:
     if education:
         add_section("Education")
         for edu in education:
-            deg = edu.get('degree', '')
-            dates = edu.get('dates', '')
-            inst = edu.get('institution', '')
+            deg = clean_val(edu.get('degree', ''))
+            dates = clean_val(edu.get('dates', ''))
+            inst = clean_val(edu.get('institution', ''))
             
             edu_table = Table(
-                [[Paragraph(f"<b>{deg}</b> — {inst}", subhead_left), Paragraph(dates, subhead_right)]],
+                [[Paragraph(f"<b>{deg}</b> - {inst}", subhead_left), Paragraph(dates, subhead_right)]],
                 colWidths=[380, 160]
             )
             edu_table.setStyle(TableStyle([
@@ -283,12 +295,12 @@ def generate_pdf_reportlab(resume_data: dict, output_pdf_path: str) -> str:
     doc.build(story)
     return output_pdf_path
 
-def generate_pdf(resume_data: dict, output_dir: str = "data") -> str:
+def generate_pdf(resume_data: dict, output_dir: str = None) -> str:
     """
     Takes JSON resume data, injects into template, and generates PDF.
-    Returns the path to the generated PDF.
+    Returns the absolute path to the generated PDF.
     """
-    template_path = os.path.join("templates", "resume.tex")
+    template_path = os.path.join(BASE_DIR, "templates", "resume.tex")
     
     with open(template_path, "r", encoding="utf-8") as f:
         template_content = f.read()
@@ -317,28 +329,33 @@ def generate_pdf(resume_data: dict, output_dir: str = "data") -> str:
     
     projects_content = format_projects(resume_data.get("projects", []))
     if not projects_content:
-        # Remove projects section entirely if no projects
         template_content = template_content.replace("% Projects\n\\section*{Projects}\n<<PROJECTS_SECTION>>\n\n", "")
     else:
         template_content = template_content.replace("<<PROJECTS_SECTION>>", projects_content)
         
     template_content = template_content.replace("<<EDUCATION_SECTION>>", format_education(resume_data.get("education", [])))
     
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    if output_dir is None:
+        target_dir = os.path.join(BASE_DIR, "data")
+    elif not os.path.isabs(output_dir):
+        target_dir = os.path.join(BASE_DIR, output_dir)
+    else:
+        target_dir = output_dir
         
-    tex_path = os.path.join(output_dir, "generated_resume.tex")
+    os.makedirs(target_dir, exist_ok=True)
+        
+    tex_path = os.path.join(target_dir, "generated_resume.tex")
     with open(tex_path, "w", encoding="utf-8") as f:
         f.write(template_content)
         
-    pdf_path = os.path.join(output_dir, "generated_resume.pdf")
+    pdf_path = os.path.join(target_dir, "generated_resume.pdf")
 
     # If pdflatex is available, use it; otherwise, fall back to ReportLab
     pdflatex_bin = shutil.which("pdflatex")
     if pdflatex_bin:
         try:
             subprocess.run(
-                [pdflatex_bin, "-interaction=nonstopmode", "-output-directory", output_dir, tex_path],
+                [pdflatex_bin, "-interaction=nonstopmode", "-output-directory", target_dir, tex_path],
                 check=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
@@ -351,4 +368,3 @@ def generate_pdf(resume_data: dict, output_dir: str = "data") -> str:
 
     # Fallback to direct Python PDF generation
     return generate_pdf_reportlab(resume_data, pdf_path)
-

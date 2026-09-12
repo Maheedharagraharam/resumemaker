@@ -3,6 +3,10 @@ import json
 import os
 from utils.llm import parse_resume_text, extract_text_from_pdf
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+
 st.set_page_config(page_title="Profile", page_icon="👤", layout="wide")
 
 if "password_correct" not in st.session_state or not st.session_state["password_correct"]:
@@ -25,8 +29,7 @@ with col1:
             with st.spinner("Extracting text and parsing with LLM..."):
                 try:
                     # Save temporarily
-                    temp_path = os.path.join("data", "temp_resume.pdf")
-                    os.makedirs("data", exist_ok=True)
+                    temp_path = os.path.join(DATA_DIR, "temp_resume.pdf")
                     with open(temp_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
                     
@@ -56,7 +59,6 @@ st.divider()
 if st.session_state["resume_data"]:
     st.subheader("Current Resume Data")
     
-    # We can edit JSON directly using st.data_editor or just a text area for simplicity
     json_str = json.dumps(st.session_state["resume_data"], indent=4)
     edited_json = st.text_area("Edit JSON", value=json_str, height=400)
     

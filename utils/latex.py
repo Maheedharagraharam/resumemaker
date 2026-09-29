@@ -179,9 +179,13 @@ def generate_pdf_reportlab(resume_data: dict, output_pdf_path: str) -> str:
 
     contacts = []
     if resume_data.get('phone'): contacts.append(clean_val(resume_data['phone']))
-    if resume_data.get('email'): contacts.append(clean_val(resume_data['email']))
-    if resume_data.get('linkedin'): contacts.append("LinkedIn: " + clean_val(resume_data['linkedin']))
-    if resume_data.get('github'): contacts.append("GitHub: " + clean_val(resume_data['github']))
+    if resume_data.get('email'): contacts.append(f'<a href="mailto:{clean_val(resume_data["email"])}">{clean_val(resume_data["email"])}</a>')
+    if resume_data.get('linkedin'):
+        linkedin_url = clean_val(resume_data['linkedin'])
+        contacts.append(f'<a href="{linkedin_url}" color="blue">LinkedIn</a>')
+    if resume_data.get('github'):
+        github_url = clean_val(resume_data['github'])
+        contacts.append(f'<a href="{github_url}" color="blue">GitHub</a>')
     if resume_data.get('location'): contacts.append(clean_val(resume_data['location']))
     
     if contacts:

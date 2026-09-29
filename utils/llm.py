@@ -109,7 +109,11 @@ def parse_resume_text(text: str) -> dict:
     You are an expert resume parser. Extract the following unstructured resume text into a structured JSON format adhering strictly to this JSON schema:
     {schema}
     
-    If any field is missing or not applicable, provide an empty string or empty list.
+    IMPORTANT INSTRUCTIONS:
+    - Extract the LinkedIn profile URL (e.g., https://linkedin.com/in/...) and put it in the "linkedin" field.
+    - Extract the GitHub profile URL (e.g., https://github.com/...) and put it in the "github" field.
+    - These URLs may appear in the text as embedded hyperlinks appended at the end (under "Extracted Hyperlinks") or inline.
+    - If any field is missing or not applicable, provide an empty string or empty list.
     
     Resume Text:
     {text}
@@ -137,11 +141,23 @@ def parse_resume_text(text: str) -> dict:
 
 def extract_text_from_pdf(pdf_path: str) -> str:
     text = ""
+    hyperlinks = []
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
             page_text = page.extract_text()
             if page_text:
                 text += page_text + "\n"
+            # Extract hyperlink annotations (URIs) that pdfplumber doesn't include in text
+            if hasattr(page, 'annots') and page.annots:
+                for annot in page.annots:
+                    uri = annot.get('uri', '')
+                    if uri and uri not in hyperlinks:
+                        hyperlinks.append(uri)
+    # Append extracted hyperlinks so the LLM can pick up LinkedIn/GitHub URLs
+    if hyperlinks:
+        text += "\n--- Extracted Hyperlinks ---\n"
+        for link in hyperlinks:
+            text += f"{link}\n"
     return clean_text_unicode(text)
 
 def tailor_resume_to_jd(base_resume_json: dict, job_description: str) -> dict:
@@ -161,6 +177,11 @@ Target Job Description:
 {cleaned_jd}
 
 STRICT TAILORING INSTRUCTIONS:
+0. Contact Information (MUST PRESERVE EXACTLY):
+   - Copy the following fields EXACTLY as-is from the base resume WITHOUT any changes:
+     "name", "phone", "email", "linkedin", "github", "location"
+   - Do NOT modify, omit, or rewrite any contact/personal information.
+
 1. Target Job Title (`job_title`):
    - Align the target title with the role specified in the Job Description (e.g. if the JD is for "Senior Backend .NET & Cloud Engineer", adapt the title accordingly).
 
@@ -203,6 +224,12 @@ STRICT TAILORING INSTRUCTIONS:
     try:
         data = json.loads(content)
         data = sanitize_resume_dict(data)
+        # Force-preserve contact fields from the base resume to prevent LLM from dropping them
+        contact_fields = ['name', 'phone', 'email', 'linkedin', 'github', 'location']
+        for field in contact_fields:
+            base_val = cleaned_base.get(field, '')
+            if base_val and not data.get(field):
+                data[field] = base_val
         validated_data = ResumeModel(**data)
         return validated_data.model_dump()
     except Exception as e:

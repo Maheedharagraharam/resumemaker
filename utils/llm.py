@@ -99,8 +99,55 @@ class ResumeModel(BaseModel):
     education: List[Education] = Field(default_factory=list)
     skills: Skills = Field(default_factory=Skills)
 
+def extract_text_from_pdf(pdf_path: str) -> str:
+    text = ""
+    hyperlinks = []
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+            # Extract hyperlink annotations (URIs) that pdfplumber doesn't include in text
+            try:
+                annots = getattr(page, 'annots', None) or []
+                for annot in annots:
+                    uri = annot.get('uri')
+                    if not uri and isinstance(annot.get('data'), dict):
+                        a_dict = annot['data'].get('A', {})
+                        if isinstance(a_dict, dict):
+                            uri = a_dict.get('URI')
+                    if isinstance(uri, bytes):
+                        uri = uri.decode('utf-8', errors='ignore')
+                    if isinstance(uri, str):
+                        uri = uri.strip()
+                        if uri and uri not in hyperlinks:
+                            hyperlinks.append(uri)
+            except Exception as e:
+                print(f"Error extracting annotations: {e}")
+
+    # Append extracted hyperlinks so the LLM and regex can pick up LinkedIn/GitHub URLs
+    if hyperlinks:
+        text += "\n--- Extracted Hyperlinks ---\n"
+        for link in hyperlinks:
+            text += f"{link}\n"
+    return clean_text_unicode(text)
+
+def _normalize_url(url: str, default_domain: str = "") -> str:
+    """Ensure URL has https:// prefix and is clean."""
+    if not url:
+        return ""
+    url = url.strip()
+    if url.startswith("http://"):
+        url = "https://" + url[7:]
+    elif not url.startswith("https://"):
+        if default_domain and not url.startswith(default_domain):
+            url = f"https://{default_domain}/{url.lstrip('/')}"
+        else:
+            url = f"https://{url.lstrip('/')}"
+    return url.rstrip('/')
+
 def parse_resume_text(text: str) -> dict:
-    """Uses Groq to parse unstructured resume text into a structured JSON dict."""
+    """Uses Groq to parse unstructured resume text into a structured JSON dict with deterministic contact extraction fallback."""
     client = get_groq_client()
     text = clean_text_unicode(text)
     schema = json.dumps(ResumeModel.model_json_schema(), indent=2)
@@ -112,7 +159,7 @@ def parse_resume_text(text: str) -> dict:
     IMPORTANT INSTRUCTIONS:
     - Extract the LinkedIn profile URL (e.g., https://linkedin.com/in/...) and put it in the "linkedin" field.
     - Extract the GitHub profile URL (e.g., https://github.com/...) and put it in the "github" field.
-    - These URLs may appear in the text as embedded hyperlinks appended at the end (under "Extracted Hyperlinks") or inline.
+    - These URLs may appear in the text as embedded hyperlinks under "--- Extracted Hyperlinks ---" or inline.
     - If any field is missing or not applicable, provide an empty string or empty list.
     
     Resume Text:
@@ -132,33 +179,29 @@ def parse_resume_text(text: str) -> dict:
     try:
         data = json.loads(content)
         data = sanitize_resume_dict(data)
+
+        # Guaranteed deterministic regex extraction for LinkedIn if LLM missed it or returned non-URL
+        if not data.get("linkedin") or "linkedin.com" not in data.get("linkedin", "").lower():
+            linkedin_match = re.search(r'(?:https?://)?(?:www\.)?linkedin\.com/(?:in/)?[a-zA-Z0-9_\-%]+', text, re.IGNORECASE)
+            if linkedin_match:
+                data["linkedin"] = _normalize_url(linkedin_match.group(0))
+        else:
+            data["linkedin"] = _normalize_url(data["linkedin"])
+
+        # Guaranteed deterministic regex extraction for GitHub if LLM missed it
+        if not data.get("github") or "github.com" not in data.get("github", "").lower():
+            github_match = re.search(r'(?:https?://)?(?:www\.)?github\.com/[a-zA-Z0-9_\-%]+', text, re.IGNORECASE)
+            if github_match:
+                data["github"] = _normalize_url(github_match.group(0))
+        else:
+            data["github"] = _normalize_url(data["github"])
+
         validated_data = ResumeModel(**data)
         return validated_data.model_dump()
     except Exception as e:
         print("Parsing error:", e)
         print("Raw output:", content)
         raise RuntimeError(f"Failed to parse resume text into JSON: {e}")
-
-def extract_text_from_pdf(pdf_path: str) -> str:
-    text = ""
-    hyperlinks = []
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + "\n"
-            # Extract hyperlink annotations (URIs) that pdfplumber doesn't include in text
-            if hasattr(page, 'annots') and page.annots:
-                for annot in page.annots:
-                    uri = annot.get('uri', '')
-                    if uri and uri not in hyperlinks:
-                        hyperlinks.append(uri)
-    # Append extracted hyperlinks so the LLM can pick up LinkedIn/GitHub URLs
-    if hyperlinks:
-        text += "\n--- Extracted Hyperlinks ---\n"
-        for link in hyperlinks:
-            text += f"{link}\n"
-    return clean_text_unicode(text)
 
 def tailor_resume_to_jd(base_resume_json: dict, job_description: str) -> dict:
     """Uses Groq to actively tailor and align resume bullet points, summary, skills, and target role to the Job Description."""
@@ -224,12 +267,14 @@ STRICT TAILORING INSTRUCTIONS:
     try:
         data = json.loads(content)
         data = sanitize_resume_dict(data)
-        # Force-preserve contact fields from the base resume to prevent LLM from dropping them
+
+        # Force-preserve all contact fields from the base resume to guarantee nothing is lost
         contact_fields = ['name', 'phone', 'email', 'linkedin', 'github', 'location']
         for field in contact_fields:
             base_val = cleaned_base.get(field, '')
-            if base_val and not data.get(field):
+            if base_val:
                 data[field] = base_val
+
         validated_data = ResumeModel(**data)
         return validated_data.model_dump()
     except Exception as e:

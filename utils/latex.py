@@ -309,13 +309,46 @@ def generate_pdf(resume_data: dict, output_dir: str = None) -> str:
     with open(template_path, "r", encoding="utf-8") as f:
         template_content = f.read()
         
+    # Construct contact line dynamically
+    contacts = []
+    phone = clean_text_unicode(str(resume_data.get("phone", "") or "")).strip()
+    if phone:
+        contacts.append(r"\faPhone* \ " + escape_latex(phone))
+    
+    email = clean_text_unicode(str(resume_data.get("email", "") or "")).strip()
+    if email:
+        contacts.append(r"\faEnvelope \ \href{mailto:" + escape_latex(email) + "}{" + escape_latex(email) + "}")
+        
+    linkedin = clean_text_unicode(str(resume_data.get("linkedin", "") or "")).strip()
+    if linkedin:
+        if not linkedin.startswith("http"):
+            linkedin = "https://" + linkedin
+        contacts.append(r"\faLinkedin \ \href{" + linkedin + "}{LinkedIn}")
+        
+    github = clean_text_unicode(str(resume_data.get("github", "") or "")).strip()
+    if github:
+        if not github.startswith("http"):
+            github = "https://" + github
+        contacts.append(r"\faGithub \ \href{" + github + "}{GitHub}")
+
+    contact_line = r" \hspace{8pt} ".join(contacts)
+    
+    location = clean_text_unicode(str(resume_data.get("location", "") or "")).strip()
+    if location:
+        if contact_line:
+            contact_line += r" \\[3pt] " + r"\faMapMarker* \ " + escape_latex(location)
+        else:
+            contact_line = r"\faMapMarker* \ " + escape_latex(location)
+
+    template_content = template_content.replace("<<CONTACT_INFO>>", contact_line)
+    
     # Replace simple variables
     template_content = template_content.replace("<<NAME>>", escape_latex(resume_data.get("name", "Name")))
     template_content = template_content.replace("<<TITLE>>", escape_latex(resume_data.get("job_title", "Software Engineer")))
     template_content = template_content.replace("<<PHONE>>", escape_latex(resume_data.get("phone", "")))
     template_content = template_content.replace("<<EMAIL>>", escape_latex(resume_data.get("email", "email@example.com")))
-    template_content = template_content.replace("<<LINKEDIN>>", resume_data.get("linkedin", "#"))
-    template_content = template_content.replace("<<GITHUB>>", resume_data.get("github", "#"))
+    template_content = template_content.replace("<<LINKEDIN>>", linkedin or "#")
+    template_content = template_content.replace("<<GITHUB>>", github or "#")
     template_content = template_content.replace("<<LOCATION>>", escape_latex(resume_data.get("location", "")))
     template_content = template_content.replace("<<SUMMARY>>", escape_latex(resume_data.get("summary", "")))
     

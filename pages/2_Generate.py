@@ -33,7 +33,17 @@ st.markdown(
 
 # Current base profile summary banner
 with st.expander("👁️ View Current Base Profile Summary & Skills", expanded=False):
-    st.markdown(f"**Target Title:** `{base_data.get('job_title', 'Software Engineer')}`")
+    st.markdown(f"**Candidate:** `{base_data.get('name', 'N/A')}` | **Target Title:** `{base_data.get('job_title', 'Software Engineer')}`")
+    
+    contact_bits = []
+    if base_data.get('email'): contact_bits.append(f"📧 `{base_data['email']}`")
+    if base_data.get('phone'): contact_bits.append(f"📞 `{base_data['phone']}`")
+    if base_data.get('linkedin'): contact_bits.append(f"🔗 [LinkedIn Profile]({base_data['linkedin']})")
+    if base_data.get('github'): contact_bits.append(f"🐙 [GitHub Profile]({base_data['github']})")
+    if base_data.get('location'): contact_bits.append(f"📍 {base_data['location']}")
+    if contact_bits:
+        st.markdown(" • ".join(contact_bits))
+        
     st.markdown(f"**Summary:** {base_data.get('summary', '')}")
     skills_obj = base_data.get('skills', {})
     if skills_obj:
